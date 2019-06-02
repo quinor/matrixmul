@@ -103,6 +103,7 @@ void inner_multiply(
         );
 
         // multiply
+        #pragma omp parallel for
         for (int dy = 0; dy < P.k*P.c; dy++)
         {
             int dy2 = dy + ((i+gid)%q) * P.k*P.c;
