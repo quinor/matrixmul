@@ -34,5 +34,5 @@ std::vector<sparse_elt> load_file(std::string fname);
 
 void parse_cli(int argc, char** argv);
 
-void inner(sparse_elt* a_mat_slice, double* b_mat_slice);
-void column(sparse_elt* a_mat_slice, double* b_mat_slice);
+void column_multiply(sparse_elt* a_mat_slice, double* b_mat_slice, double* c_mat_slice);
+void inner_multiply(sparse_elt* a_mat_slice, double* b_mat_slice, double* c_mat_slice);

@@ -1,8 +1,11 @@
 cmake_minimum_required(VERSION 2.8)
 project(matrixmul)
 
+# set(BOOST_ROOT /apps/boost/1.60.0/GNU/5.3/)
+
 find_package(Boost COMPONENTS program_options REQUIRED)
 find_package(MPI REQUIRED)
+find_package(OpenMP REQUIRED)
 
 add_definitions("-std=c++17")
 
@@ -18,9 +21,9 @@ add_executable(
     matrixmul
     src/main.cc
     src/load.cc
-    src/inner.cc
     src/column.cc
-    src/densematgen.cpp
+    src/inner.cc
+    densematgen.cpp
 )
 
 set_target_properties(
@@ -32,4 +35,5 @@ target_link_libraries(
     matrixmul
     ${Boost_LIBRARIES}
     ${MPI_LIBRARIES}
+    ${OpenMP_CXX_LIBRARIES}
 )

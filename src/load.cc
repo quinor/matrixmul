@@ -120,7 +120,7 @@ void parse_cli(int argc, char** argv)
 
     if (vm.count("help"))
     {
-        std::cout << desc << "\n";
+        std::cerr << desc << "\n";
         exit(-1);
     }
 
@@ -131,7 +131,7 @@ void parse_cli(int argc, char** argv)
         vm.count("exponent") == 0
     )
     {
-        std::cout<<"commandline options missing.\n"<<desc<<"\n";
+        std::cerr<<"commandline options missing.\n"<<desc<<"\n";
         exit(-2);
     }
 
@@ -147,4 +147,16 @@ void parse_cli(int argc, char** argv)
         P.ge_value = vm["greater-equal"].as<double>();
 
     filename = vm["input-file"].as<std::string>();
+
+    if (P.p % P.c != 0)
+    {
+        std::cerr<<"group size does not divide process count\n";
+        exit(-3);
+    }
+
+    if (P.inner && P.p % (P.c*P.c) != 0)
+    {
+        std::cerr<<"group size squared does not divide process count\n";
+        exit(-3);
+    }
 }
