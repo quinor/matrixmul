@@ -1,6 +1,7 @@
 #include "mmul.hh"
 
 #include <cstdio>
+#include <algorithm>
 #include <getopt.h>
 
 
@@ -136,13 +137,14 @@ void parse_cli(int argc, char** argv)
 
     if (P.p % P.c != 0)
     {
-        fprintf(stderr, "group size does not divide process count\n");
+        fprintf(stderr, "group size %d does not divide process count %d\n", P.c, P.p);
+
         exit(-3);
     }
 
     if (P.inner && P.p % (P.c*P.c) != 0)
     {
-        fprintf(stderr, "group size squared does not divide process count\n");
+        fprintf(stderr, "group size %d squared does not divide process count %d\n", P.c, P.p);
         exit(-3);
     }
 }

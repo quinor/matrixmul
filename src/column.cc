@@ -1,6 +1,7 @@
 #include "mmul.hh"
 
 #include <mpi.h>
+// #include <mkl_spblas.h>
 
 
 void column_multiply(
@@ -55,20 +56,38 @@ void column_multiply(
         );
 
         // multiply
-        #pragma omp parallel for
-        for (int dx=0; dx<P.k; dx++)
+        if (P.mkl)
         {
-            // int x = dx + id*P.k;
-            for (int dz = 0; dz < P.k*P.c; dz++)
+            // TODO
+            // struct matrix_descr desc;
+            // desc.type = SPARSE_MATRIX_GENERAL;
+
+            // sparse_matrix_t mkl_a;
+            // mkl_sparse_d_mm(
+            //     SPARSE_OPERATION_TRANSPOSE,
+            //     1.0,
+            //     mkl_a,
+            //     SPARSE_LAYOUT_COLUMN_MAJOR,
+
+            // );
+        }
+        else
+        {
+            #pragma omp parallel for
+            for (int dx=0; dx<P.k; dx++)
             {
-                int z = dz + (((i+id/P.c)*P.c)%P.p)*P.k;
-                for (int j=0; j<P.q; j++)
+                // int x = dx + id*P.k;
+                for (int dz = 0; dz < P.k*P.c; dz++)
                 {
-                    auto elt = temp_a_1[dz*P.q + j];
-                    if (elt.pos == -1)
-                        continue;
-                    int y = elt.pos;
-                    c_mat_slice[y*P.k + dx] += elt.val * b_mat_slice[z*P.k + dx];
+                    int z = dz + (((i+id/P.c)*P.c)%P.p)*P.k;
+                    for (int j=0; j<P.q; j++)
+                    {
+                        auto elt = temp_a_1[dz*P.q + j];
+                        if (elt.pos == -1)
+                            continue;
+                        int y = elt.pos;
+                        c_mat_slice[dx*P.n + y] += elt.val * b_mat_slice[dx*P.n + z];
+                    }
                 }
             }
         }

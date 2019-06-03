@@ -47,16 +47,16 @@ int main (int argc, char** argv)
     // destroy the loaded sparse matrix
     std::vector<sparse_elt>().swap(sparse_mat);
 
-    // generate columns of dense B matrix
+    // generate columns of dense B matrix (column major)
 
     double* b_mat_slice = new double[P.n*P.k];
 
-    for (int y=0; y<P.n; y++)
-        for (int x=0; x<P.k; x++)
+    for (int x=0; x<P.k; x++)
+        for (int y=0; y<P.n; y++)
             if (y < P.real_n && x+id*P.k < P.real_n)
-                b_mat_slice[y*P.k + x] = generate_double(P.seed, y, x+id*P.k);
+                b_mat_slice[x*P.n + y] = generate_double(P.seed, y, x+id*P.k);
             else
-                b_mat_slice[y*P.k + x] = 0;
+                b_mat_slice[x*P.n + y] = 0;
 
     double* c_mat_slice = new double[P.n*P.k];
 
@@ -97,7 +97,7 @@ int main (int argc, char** argv)
                 for (int y=0; y<P.real_n; y++)
                 {
                     for (int x=0; x<P.real_n; x++)
-                        printf("% 12.5lf ", result[(x/P.k)*P.n*P.k + y*P.k + x%P.k]);
+                        printf("% 12.5lf ", result[x*P.n + y]);
                     printf("\n");
                 }
             }
@@ -106,7 +106,7 @@ int main (int argc, char** argv)
                 size_t c = 0;
                 for (int y=0; y<P.real_n; y++)
                     for (int x=0; x<P.real_n; x++)
-                        if (result[(x/P.k)*P.n*P.k + y*P.k + x%P.k] > P.ge_value)
+                        if (result[x*P.n + y] > P.ge_value)
                             c++;
                 printf("%d\n", c);
             }
