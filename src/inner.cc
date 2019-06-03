@@ -1,6 +1,7 @@
 #include "mmul.hh"
 
 #include <mpi.h>
+#include <mkl.h>
 
 
 void inner_multiply(
@@ -17,6 +18,12 @@ void inner_multiply(
 
     sparse_elt* temp_a_1 = new sparse_elt[P.k*P.c*P.q];
     sparse_elt* temp_a_2 = new sparse_elt[P.k*P.c*P.q];
+
+    // csr
+    int* rows_start = new int[P.n];
+    int* rows_end = new int[P.n];
+    int* poses = new int[P.k*P.c*P.q];
+    double* vals = new double[P.k*P.c*P.q];
 
     double* b_mat_gathered = new double[P.k*P.c*P.n];
     double* c_mat_gathered = new double[P.k*P.n];
@@ -51,10 +58,6 @@ void inner_multiply(
 
     for (int i=0; i<P.k*P.n; i++)
         c_mat_slice[i] = 0;
-
-    // for (int dx=0; dx<P.k*P.c; dx++)
-    //     for (int dy=0; dy<h; dy++)
-    //         c_mat_slice[dx*h + dy] = gid + 0.01*tid + 0.0001*dx + 0.000001*dy;
 
     MPI_Waitall(2, requests, statuses);
 
@@ -108,21 +111,78 @@ void inner_multiply(
         );
 
         // multiply
-        #pragma omp parallel for
-        for (int dy = 0; dy < P.k*P.c; dy++)
+        if (P.mkl)
         {
-            int dy2 = dy + ((i+gid)%q) * P.k*P.c;
-            int y = dy2 + tid * h;
-            for (int j=0; j<P.q; j++)
+            struct matrix_descr desc;
+            desc.type = SPARSE_MATRIX_TYPE_GENERAL;
+
+            for (int j=0; j<h; j++)
+                rows_start[j] = rows_end[j] = 0;
+            int cur = 0;
+
+            // convert to CSR
+            for (int dy=0; dy < P.k*P.c; dy++)
             {
-                auto elt = temp_a_1[dy*P.q + j];
-                if (elt.pos == -1)
-                    continue;
-                int z = elt.pos;
-                for (int dx=0; dx<P.k*P.c; dx++)
+                int dy2 = dy + ((i+gid)%q) * P.k*P.c;
+
+                rows_start[dy2] = cur;
+                for (int j=0; j<P.q; j++)
                 {
-                    // x = dx + gid*P.k*P.c;
-                    c_mat_slice[dx * h + dy2] += elt.val * b_mat_gathered[dx * P.n + z];
+                    auto elt = temp_a_1[dy*P.q + j];
+                    if (elt.pos == -1)
+                        continue;
+                    poses[cur] = elt.pos;
+                    vals[cur] = elt.val;
+                    cur++;
+                }
+                rows_end[dy2] = cur;
+            }
+            sparse_matrix_t mkl_a;
+            mkl_sparse_d_create_csr(
+                &mkl_a,
+                SPARSE_INDEX_BASE_ZERO,
+                h,
+                P.n,
+                rows_start,
+                rows_end,
+                poses,
+                vals
+            );
+
+            //run multiplication
+            mkl_sparse_d_mm(
+                SPARSE_OPERATION_NON_TRANSPOSE,
+                1.0,
+                mkl_a,
+                desc,
+                SPARSE_LAYOUT_COLUMN_MAJOR,
+                b_mat_slice,
+                P.k*P.c,
+                P.n,
+                1.0,
+                c_mat_slice,
+                h
+            );
+            mkl_sparse_destroy(mkl_a);
+        }
+        else
+        {
+            // #pragma omp parallel for
+            for (int dy=0; dy < P.k*P.c; dy++)
+            {
+                int dy2 = dy + ((i+gid)%q) * P.k*P.c;
+                int y = dy2 + tid * h;
+                for (int j=0; j<P.q; j++)
+                {
+                    auto elt = temp_a_1[dy*P.q + j];
+                    if (elt.pos == -1)
+                        continue;
+                    int z = elt.pos;
+                    for (int dx=0; dx<P.k*P.c; dx++)
+                    {
+                        // x = dx + gid*P.k*P.c;
+                        c_mat_slice[dx * h + dy2] += elt.val * b_mat_gathered[dx * P.n + z];
+                    }
                 }
             }
         }
@@ -153,6 +213,10 @@ void inner_multiply(
         for (int y=0; y<P.n; y++)
             c_mat_slice[dx*P.n + y] = c_mat_gathered[(y/h)*P.k*h + dx*h + y%h];
 
+    delete[] rows_start;
+    delete[] rows_end;
+    delete[] poses;
+    delete[] vals;
     delete[] temp_a_1;
     delete[] temp_a_2;
     delete[] b_mat_gathered;

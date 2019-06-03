@@ -1,7 +1,7 @@
 #include "mmul.hh"
 
 #include <mpi.h>
-// #include <mkl_spblas.h>
+#include <mkl.h>
 
 
 void column_multiply(
@@ -15,6 +15,12 @@ void column_multiply(
 
     sparse_elt* temp_a_1 = new sparse_elt[P.k*P.c*P.q];
     sparse_elt* temp_a_2 = new sparse_elt[P.k*P.c*P.q];
+
+    // csr
+    int* rows_start = new int[P.n];
+    int* rows_end = new int[P.n];
+    int* poses = new int[P.k*P.c*P.q];
+    double* vals = new double[P.k*P.c*P.q];
 
     MPI_Allgather(
         a_mat_slice,
@@ -58,22 +64,61 @@ void column_multiply(
         // multiply
         if (P.mkl)
         {
-            // TODO
-            // struct matrix_descr desc;
-            // desc.type = SPARSE_MATRIX_GENERAL;
+            struct matrix_descr desc;
+            desc.type = SPARSE_MATRIX_TYPE_GENERAL;
 
-            // sparse_matrix_t mkl_a;
-            // mkl_sparse_d_mm(
-            //     SPARSE_OPERATION_TRANSPOSE,
-            //     1.0,
-            //     mkl_a,
-            //     SPARSE_LAYOUT_COLUMN_MAJOR,
+            for (int j=0; j<P.n; j++)
+                rows_start[j] = rows_end[j] = 0;
+            int cur = 0;
 
-            // );
+            // convert to CSR
+            for (int dz=0; dz < P.k*P.c; dz++)
+            {
+                int z = dz + (((i+id/P.c)*P.c)%P.p)*P.k;
+
+                rows_start[z] = cur;
+                for (int j=0; j<P.q; j++)
+                {
+                    auto elt = temp_a_1[dz*P.q + j];
+                    if (elt.pos == -1)
+                        continue;
+                    poses[cur] = elt.pos;
+                    vals[cur] = elt.val;
+                    cur++;
+                }
+                rows_end[z] = cur;
+            }
+            sparse_matrix_t mkl_a;
+            mkl_sparse_d_create_csr(
+                &mkl_a,
+                SPARSE_INDEX_BASE_ZERO,
+                P.n,
+                P.n,
+                rows_start,
+                rows_end,
+                poses,
+                vals
+            );
+
+            //run multiplication
+            mkl_sparse_d_mm(
+                SPARSE_OPERATION_TRANSPOSE,
+                1.0,
+                mkl_a,
+                desc,
+                SPARSE_LAYOUT_COLUMN_MAJOR,
+                b_mat_slice,
+                P.k,
+                P.n,
+                1.0,
+                c_mat_slice,
+                P.n
+            );
+            mkl_sparse_destroy(mkl_a);
         }
         else
         {
-            #pragma omp parallel for
+            // #pragma omp parallel for
             for (int dx=0; dx<P.k; dx++)
             {
                 // int x = dx + id*P.k;
@@ -97,6 +142,11 @@ void column_multiply(
 
         std::swap(temp_a_1, temp_a_2);
     }
+
+    delete[] rows_start;
+    delete[] rows_end;
+    delete[] poses;
+    delete[] vals;
 
     delete[] temp_a_1;
     delete[] temp_a_2;
