@@ -1,9 +1,6 @@
 cmake_minimum_required(VERSION 2.8)
 project(matrixmul)
 
-# set(BOOST_ROOT /apps/boost/1.60.0/GNU/5.3/)
-
-find_package(Boost COMPONENTS program_options REQUIRED)
 find_package(MPI REQUIRED)
 find_package(OpenMP REQUIRED)
 
@@ -14,8 +11,6 @@ set(CMAKE_CXX_LINK_FLAGS ${CMAKE_CXX_LINK_FLAGS} ${MPI_LINK_FLAGS})
 
 include_directories(MPI_INCLUDE_PATH)
 include_directories(src)
-include_directories(${Boost_INCLUDE_DIRS})
-link_directories(${Boost_LIBRARY_DIRS})
 
 add_executable(
     matrixmul
@@ -33,7 +28,6 @@ set_target_properties(
 
 target_link_libraries(
     matrixmul
-    ${Boost_LIBRARIES}
     ${MPI_LIBRARIES}
     ${OpenMP_CXX_LIBRARIES}
 )

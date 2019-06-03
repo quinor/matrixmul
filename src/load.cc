@@ -1,10 +1,7 @@
 #include "mmul.hh"
 
 #include <cstdio>
-#include <iostream>
-#include <boost/program_options.hpp>
-
-namespace po = boost::program_options;
+#include <getopt.h>
 
 
 std::vector<sparse_elt> load_file(std::string fname)
@@ -100,63 +97,52 @@ std::vector<sparse_elt> load_file(std::string fname)
 
 void parse_cli(int argc, char** argv)
 {
-    po::options_description desc("Allowed options");
-
-    desc.add_options()
-        ("help,h", "produce help message")
-        ("input-file,f", po::value<std::string>(), "input file")
-        ("seed,s", po::value<int>(), "seed for the matrix generation algorithm")
-        ("inner,i", "turn on inner algorithm (by default: column)")
-        ("verbose,v", "print the C matrix")
-        ("replication,c", po::value<int>(), "c parameter of the algorithm")
-        ("exponent,e", po::value<int>(), "number of matrix multiplications")
-        ("greater-equal,g", po::value<double>(), "print number of elements of C greater or equal than the value")
-        ("mkl,m", "turn on the MKL for matrix multiplication")
-    ;
-
-    po::variables_map vm;
-
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-
-    if (vm.count("help"))
+    P.seed = -1;
+    int c;
+    while ((c = getopt(argc, argv, "f:s:ic:e:g:vm")) != -1)
     {
-        std::cerr << desc << "\n";
-        exit(-1);
+        switch(c)
+        {
+            case 'f':
+                filename = optarg;
+                break;
+            case 's':
+                P.seed = atoi(optarg);
+                break;
+            case 'i':
+                P.inner = 1;
+                break;
+            case 'v':
+                P.verbose = 1;
+                break;
+            case 'c':
+                P.c = atoi(optarg);
+                break;
+            case 'e':
+                P.e = atoi(optarg);
+                break;
+            case 'g':
+                P.ge_flag = 1;
+                P.ge_value = atof(optarg);
+                break;
+        }
     }
 
-    if (
-        vm.count("input-file") == 0 ||
-        vm.count("seed") == 0 ||
-        vm.count("replication") == 0 ||
-        vm.count("exponent") == 0
-    )
+    if (filename.size() == 0 || P.seed == -1 || P.c == 0 || P.e == 0)
     {
-        std::cerr<<"commandline options missing.\n"<<desc<<"\n";
+        fprintf(stderr, "commandline options missing.\n");
         exit(-2);
     }
 
-    P.seed = vm["seed"].as<int>();
-    P.c = vm["replication"].as<int>();
-    P.e = vm["exponent"].as<int>();
-
-    P.inner = (vm.count("inner") != 0);
-    P.verbose = (vm.count("verbose") != 0);
-    P.mkl = (vm.count("mkl") != 0);
-    P.ge_flag = (vm.count("greater-equal") != 0);
-    if (P.ge_flag)
-        P.ge_value = vm["greater-equal"].as<double>();
-
-    filename = vm["input-file"].as<std::string>();
-
     if (P.p % P.c != 0)
     {
-        std::cerr<<"group size does not divide process count\n";
+        fprintf(stderr, "group size does not divide process count\n");
         exit(-3);
     }
 
     if (P.inner && P.p % (P.c*P.c) != 0)
     {
-        std::cerr<<"group size squared does not divide process count\n";
+        fprintf(stderr, "group size squared does not divide process count\n");
         exit(-3);
     }
 }
